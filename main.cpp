@@ -121,10 +121,9 @@ int main(int argc, char *argv[])
 	Mat fore;
 	vector<pair<Point,double> > palm_centers;
 	VideoCapture cap(0);
-	BackgroundSubtractorMOG2 bg;
-	bg.set("nmixtures",3);
-	bg.set("detectShadows",false);
 
+	Ptr<BackgroundSubtractorMOG2> bg = createBackgroundSubtractorMOG2(500, 16, false);
+	bg->setNMixtures(3);
 
 	namedWindow("Frame");
 	namedWindow("Background");
@@ -136,15 +135,27 @@ int main(int argc, char *argv[])
 		vector<vector<Point> > contours;
 		//Get the frame
 		cap >> frame;
+		if( frame.empty() ) {
+                        struct timeval tv;
+                        tv.tv_sec = 0;
+                        tv.tv_usec = 20000;
+                        select(0, NULL, NULL, NULL, &tv);
+                        continue;
+                }
 
 		//Update the current background model and get the foreground
 		if(backgroundFrame>0)
-		{bg.operator ()(frame,fore);backgroundFrame--;}
+		{
+			bg->apply(frame, fore);
+			backgroundFrame--;
+		}
 		else
-		{bg.operator()(frame,fore,0);}
+		{
+			bg->apply(frame, fore, 0);
+		}
 
 		//Get background image to display it
-		bg.getBackgroundImage(back);
+		bg->getBackgroundImage(back);
 
 
 		//Enhance edges in the foreground by applying erosion and dilation
@@ -153,7 +164,7 @@ int main(int argc, char *argv[])
 
 
 		//Find the contours in the foreground
-		findContours(fore,contours,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+		findContours(fore,contours,RETR_EXTERNAL,CHAIN_APPROX_NONE);
 		for(int i=0;i<contours.size();i++)
 			//Ignore all small insignificant areas
 			if(contourArea(contours[i])>=5000)		    
@@ -266,19 +277,18 @@ int main(int argc, char *argv[])
 						}
 						
 						no_of_fingers=min(5,no_of_fingers);
-						cout<<"NO OF FINGERS: "<<no_of_fingers<<endl;
+						cout<<"NO OF FINGERS: "<<no_of_fingers<<" / Palm at: "<<palm_center.x<<"x"<<palm_center.y<<endl;
 						mouseTo(palm_center.x,palm_center.y);//Move the cursor corresponding to the palm
 						if(no_of_fingers<4)//If no of fingers is <4 , click , else release
 							mouseClick();
 						else
 							mouseRelease();
-						
 					}
 				}
 
 			}
 		if(backgroundFrame>0)
-			putText(frame, "Recording Background", cvPoint(30,30), FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
+			putText(frame, "Recording Background", Point(30,30), FONT_HERSHEY_COMPLEX_SMALL, 0.8, Scalar(200,200,250), 1, LINE_AA);
 		imshow("Frame",frame);
 		imshow("Background",back);
 		if(waitKey(10) >= 0) break;
